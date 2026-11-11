@@ -3,18 +3,18 @@
   "channel": "test",
   "available": true,
   "applicationId": "com.navtasks.app.glass",
-  "versionName": "0.4.152-test1",
-  "versionCode": 176,
+  "versionName": "0.4.158-test2",
+  "versionCode": 180,
   "minSdk": 31,
-  "minSupportedVersionCode": 174,
+  "minSupportedVersionCode": 178,
   "apk": {
-    "url": "https://github.com/sergbokarev95-arch/NavTasks-Updates/releases/download/test-v0.4.152/NavTasks_0.4.152-test1.apk",
-    "sizeBytes": 28501761,
-    "sha256": "43843af02acbab67606a12ba711254db8c38d148e6f4455bd52f73fb5dbd4ed1",
+    "url": "https://github.com/sergbokarev95-arch/NavTasks-Updates/releases/download/test-v0.4.158/NavTasks_0.4.158-test2.apk",
+    "sizeBytes": 28518145,
+    "sha256": "0b43f931c80ff515bc59e13bae1c0df4988e7f4ff465460925f315fb46e80f58",
     "signerSha256": "0cb8a3c691e3fb2198682dff8c226aec710e77c7b8fded7d260a92f359a49c54"
   },
   "releaseNotes": {
-    "ru": "Тестирование загрузки, проверки подписи и системной установки.",
-    "en": "Test signed APK download, integrity validation and Android installation."
+    "ru": "Проверка докачки APK при обрыве связи, проверки подписи и установки.",
+    "en": "Test resumable APK download, integrity and Android installation."
   }
 }
