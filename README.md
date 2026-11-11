@@ -13,7 +13,7 @@ Official **binary-only** distribution channel for the NavTasks Android applicati
 
 Machine-readable stable metadata: [channels/stable.json](channels/stable.json).
 
-Until the first approved stable release, this file says `"available": false`. **No APK is currently published in this public repository.**
+Until the first approved stable release, this file says `"available": false`. **No stable APK is currently published in this public repository.**
 
 Each future stable release will provide:
 
@@ -25,3 +25,12 @@ Each future stable release will provide:
 The installed application must independently verify the **APK signing certificate**, not rely on the SHA-256 from this repository as proof of publisher identity. Updates remain optional, and all application features remain offline-capable.
 
 **Main private development repository:** source access is restricted. Do not upload source code, profile exports, certificates, keystores or credentials here.
+
+## Explicit test channel
+
+Test metadata lives at [channels/test.json](channels/test.json). It is separate from
+`channels/stable.json` and is never checked automatically. A test-enabled NavTasks
+app checks it only when the user presses **Check test channel** in Settings.
+A reviewed signed test APK may later be published as a GitHub **prerelease** tagged
+`test-vX.Y.Z`. Test builds are not stable releases; they must never be placed
+in the stable feed. Keep private source, user profiles and signing secrets out of this repository.
