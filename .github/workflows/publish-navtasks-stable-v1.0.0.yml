@@ -1,0 +1,114 @@
+name: Publish and verify signed NavTasks 1.0.0 stable update
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-navtasks-stable-v1.0.0.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: navtasks-publish-stable-v1.0.0
+  cancel-in-progress: false
+
+jobs:
+  publish-verified-stable:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: android-actions/setup-android@v4
+      - name: Install APK signature verifier
+        run: sdkmanager --install 'build-tools;35.0.0'
+      - name: Download and SHA-256 pin original signed stable APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 4 --retry-delay 3 --connect-timeout 30 --max-time 600 \
+            --proto '=https' --proto-redir '=https' \
+            -o "$RUNNER_TEMP/NavTasks_1.0.0.apk" \
+            "https://github.com/sergbokarev95-arch/NavTasks/releases/download/v1.0.0/NavTasks_1.0.0.apk"
+          test "$(stat -c%s "$RUNNER_TEMP/NavTasks_1.0.0.apk")" = 37035842
+          printf '%s  %s\n' \
+            ac5038175b5dd21d9de3a5ae04f398d53e2d927fe970e2e2c533548986b186d2 \
+            "$RUNNER_TEMP/NavTasks_1.0.0.apk" | sha256sum --check --status
+      - name: Verify app ID, stable version and ORIGINAL signing certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$RUNNER_TEMP/NavTasks_1.0.0.apk"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | \
+            grep -F "package: name='com.navtasks.app.glass' versionCode='226' versionName='1.0.0'"
+          ! "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | \
+            grep -Fq 'application-debuggable'
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --min-sdk-version 31 "$APK"
+          ACTUAL="$("$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$APK" |
+            awk -F': ' '/Signer #1 certificate SHA-256 digest:/ {print $2; exit}')"
+          test "$ACTUAL" = 0cb8a3c691e3fb2198682dff8c226aec710e77c7b8fded7d260a92f359a49c54
+      - name: Publish stable release (idempotent; NEVER overwrite a different asset)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view v1.0.0 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            mkdir -p "$RUNNER_TEMP/existing"
+            gh release download v1.0.0 --repo "$GITHUB_REPOSITORY" \
+              --pattern NavTasks_1.0.0.apk --dir "$RUNNER_TEMP/existing"
+            printf '%s  %s\n' \
+              ac5038175b5dd21d9de3a5ae04f398d53e2d927fe970e2e2c533548986b186d2 \
+              "$RUNNER_TEMP/existing/NavTasks_1.0.0.apk" | sha256sum --check --status
+          else
+            gh release create v1.0.0 "$RUNNER_TEMP/NavTasks_1.0.0.apk" \
+              --repo "$GITHUB_REPOSITORY" --latest \
+              --title "NavTasks 1.0.0" \
+              --notes "First stable NavTasks. Reference: Inspections (SIRE 2.0 and VIQ7), Equipment and My Materials. Handover-style import/export, complete PDF/DOCX equipment attachments, full and selective transfer. Original app signer preserved. Optional in-app updates, no Google Play."
+          fi
+          gh release view v1.0.0 --repo "$GITHUB_REPOSITORY" \
+            --json isDraft,isPrerelease --jq '.isDraft == false and .isPrerelease == false' | grep -Fx true
+      - name: Activate stable update feed only AFTER verified APK release exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path("channels/stable.json")
+          before = json.loads(p.read_text(encoding="utf-8"))
+          if before.get("schemaVersion") != 1 or before.get("channel") != "stable":
+              raise SystemExit("Unexpected stable channel schema: refusing publication")
+          data = {
+              "schemaVersion": 1,
+              "channel": "stable",
+              "available": True,
+              "applicationId": "com.navtasks.app.glass",
+              "versionName": "1.0.0",
+              "versionCode": 226,
+              "minSdk": 31,
+              "minSupportedVersionCode": 182,
+              "apk": {
+                  "url": "https://github.com/sergbokarev95-arch/NavTasks-Updates/releases/download/v1.0.0/NavTasks_1.0.0.apk",
+                  "sizeBytes": 37035842,
+                  "sha256": "ac5038175b5dd21d9de3a5ae04f398d53e2d927fe970e2e2c533548986b186d2",
+                  "signerSha256": "0cb8a3c691e3fb2198682dff8c226aec710e77c7b8fded7d260a92f359a49c54"
+              },
+              "releaseNotes": {
+                  "ru": "NavTasks 1.0.0 — первый стабильный выпуск. Справочник: Инспекции (SIRE 2.0, VIQ7), Оборудование, Мои материалы. Импорт и экспорт оформлены как Handover; оборудование передаётся с PDF/Word. Полный и выборочный перенос, офлайн-работа и необязательные обновления.",
+                  "en": "NavTasks 1.0.0 first stable release. Reference has Inspections (SIRE 2.0, VIQ7), Equipment and My Materials. Handover-style import/export with complete PDF/Word equipment attachments, full/selective transfer, offline use and optional updates."
+              }
+          }
+          p.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add channels/stable.json
+          if git diff --cached --quiet; then
+            echo "Stable update feed already matches verified release"
+          else
+            git commit -m "release: enable verified signed NavTasks 1.0.0 stable feed"
+            git push origin HEAD:main
+          fi
