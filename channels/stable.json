@@ -3,18 +3,18 @@
   "channel": "stable",
   "available": true,
   "applicationId": "com.navtasks.app.glass",
-  "versionName": "1.0.0",
-  "versionCode": 226,
+  "versionName": "1.0.1",
+  "versionCode": 227,
   "minSdk": 31,
   "minSupportedVersionCode": 182,
   "apk": {
-    "url": "https://github.com/sergbokarev95-arch/NavTasks-Updates/releases/download/v1.0.0/NavTasks_1.0.0.apk",
-    "sizeBytes": 37035842,
-    "sha256": "ac5038175b5dd21d9de3a5ae04f398d53e2d927fe970e2e2c533548986b186d2",
+    "url": "https://github.com/sergbokarev95-arch/NavTasks-Updates/releases/download/v1.0.1/NavTasks_1.0.1.apk",
+    "sizeBytes": 37035846,
+    "sha256": "7dc19a79f32d242e7e8965c0f8e18f552fd693f2884478d50142d58e4c16ae03",
     "signerSha256": "0cb8a3c691e3fb2198682dff8c226aec710e77c7b8fded7d260a92f359a49c54"
   },
   "releaseNotes": {
-    "ru": "NavTasks 1.0.0 — первый стабильный выпуск. Справочник: Инспекции (SIRE 2.0, VIQ7), Оборудование, Мои материалы. Импорт и экспорт оформлены как Handover; оборудование передаётся с PDF/Word. Полный и выборочный перенос, офлайн-работа и необязательные обновления.",
-    "en": "NavTasks 1.0.0 first stable release. Reference has Inspections (SIRE 2.0, VIQ7), Equipment and My Materials. Handover-style import/export with complete PDF/Word equipment attachments, full/selective transfer, offline use and optional updates."
+    "ru": "NavTasks 1.0.1 — пробное обновление по воздуху. Убрана лишняя надпись Glass в нижнем блоке настроек. Остальные функции и данные не изменены.",
+    "en": "NavTasks 1.0.1 — over-the-air update test. Removed the legacy Glass word from the Settings version footer. All other functionality and stored data remain unchanged."
   }
 }
