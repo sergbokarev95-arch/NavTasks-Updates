@@ -1,0 +1,120 @@
+name: Publish and verify signed NavTasks 1.0.1 stable update
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-navtasks-stable-v1.0.1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: navtasks-publish-stable-v1.0.1
+  cancel-in-progress: false
+
+jobs:
+  publish-verified-stable:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: android-actions/setup-android@v4
+      - name: Install APK signature verifier
+        run: sdkmanager --install 'build-tools;35.0.0'
+      - name: Download and SHA-256 pin original signed stable APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 4 --retry-delay 3 --connect-timeout 30 --max-time 600 \
+            --proto '=https' --proto-redir '=https' \
+            -o "$RUNNER_TEMP/NavTasks_1.0.1.apk" \
+            "https://github.com/sergbokarev95-arch/NavTasks/releases/download/v1.0.1/NavTasks_1.0.1.apk"
+          test "$(stat -c%s "$RUNNER_TEMP/NavTasks_1.0.1.apk")" = 37035846
+          printf '%s  %s\n' \
+            7dc19a79f32d242e7e8965c0f8e18f552fd693f2884478d50142d58e4c16ae03 \
+            "$RUNNER_TEMP/NavTasks_1.0.1.apk" | sha256sum --check --status
+      - name: Verify app ID, stable version and ORIGINAL signing certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$RUNNER_TEMP/NavTasks_1.0.1.apk"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | \
+            grep -F "package: name='com.navtasks.app.glass' versionCode='227' versionName='1.0.1'"
+          ! "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | \
+            grep -Fq 'application-debuggable'
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --min-sdk-version 31 "$APK"
+          ACTUAL="$("$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$APK" |
+            awk -F': ' '/Signer #1 certificate SHA-256 digest:/ {print $2; exit}')"
+          test "$ACTUAL" = 0cb8a3c691e3fb2198682dff8c226aec710e77c7b8fded7d260a92f359a49c54
+      - name: Publish stable release (idempotent; NEVER overwrite a different asset)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view v1.0.1 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            mkdir -p "$RUNNER_TEMP/existing"
+            gh release download v1.0.1 --repo "$GITHUB_REPOSITORY" \
+              --pattern NavTasks_1.0.1.apk --dir "$RUNNER_TEMP/existing"
+            printf '%s  %s\n' \
+              7dc19a79f32d242e7e8965c0f8e18f552fd693f2884478d50142d58e4c16ae03 \
+              "$RUNNER_TEMP/existing/NavTasks_1.0.1.apk" | sha256sum --check --status
+          else
+            gh release create v1.0.1 "$RUNNER_TEMP/NavTasks_1.0.1.apk" \
+              --repo "$GITHUB_REPOSITORY" --latest \
+              --title "NavTasks 1.0.1" \
+              --notes "NavTasks 1.0.1 update test: remove legacy Glass text from Settings version footer, now NavTasks 1.0.1. No business logic or data format changes. Signed with original certificate for optional in-app update."
+          fi
+          gh release view v1.0.1 --repo "$GITHUB_REPOSITORY" \
+            --json isDraft,isPrerelease --jq '.isDraft == false and .isPrerelease == false' | grep -Fx true
+      - name: Activate stable update feed only AFTER verified APK release exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path("channels/stable.json")
+          before = json.loads(p.read_text(encoding="utf-8"))
+          if before.get("schemaVersion") != 1 or before.get("channel") != "stable":
+              raise SystemExit("Unexpected stable channel schema: refusing publication")
+          if before.get("versionCode") not in (226, 227):
+              raise SystemExit("Unexpected current stable version: refusing publication")
+          if before.get("applicationId") != "com.navtasks.app.glass":
+              raise SystemExit("Unexpected application ID in current stable channel")
+          if before.get("apk", {}).get("signerSha256") != "0cb8a3c691e3fb2198682dff8c226aec710e77c7b8fded7d260a92f359a49c54":
+              raise SystemExit("Unexpected signer in existing stable channel")
+          data = {
+              "schemaVersion": 1,
+              "channel": "stable",
+              "available": True,
+              "applicationId": "com.navtasks.app.glass",
+              "versionName": "1.0.1",
+              "versionCode": 227,
+              "minSdk": 31,
+              "minSupportedVersionCode": 182,
+              "apk": {
+                  "url": "https://github.com/sergbokarev95-arch/NavTasks-Updates/releases/download/v1.0.1/NavTasks_1.0.1.apk",
+                  "sizeBytes": 37035846,
+                  "sha256": "7dc19a79f32d242e7e8965c0f8e18f552fd693f2884478d50142d58e4c16ae03",
+                  "signerSha256": "0cb8a3c691e3fb2198682dff8c226aec710e77c7b8fded7d260a92f359a49c54"
+              },
+              "releaseNotes": {
+                  "ru": "NavTasks 1.0.1 — пробное обновление по воздуху. Убрана лишняя надпись Glass в нижнем блоке настроек. Остальные функции и данные не изменены.",
+                  "en": "NavTasks 1.0.1 — over-the-air update test. Removed the legacy Glass word from the Settings version footer. All other functionality and stored data remain unchanged."
+              }
+          }
+          p.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add channels/stable.json
+          if git diff --cached --quiet; then
+            echo "Stable update feed already matches verified release"
+          else
+            git commit -m "release: enable verified signed NavTasks 1.0.1 stable feed"
+            git push origin HEAD:main
+          fi
