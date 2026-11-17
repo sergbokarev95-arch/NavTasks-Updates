@@ -1,0 +1,120 @@
+name: Publish and verify signed NavTasks 1.1.0 stable update
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-navtasks-stable-v1.1.0.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: navtasks-publish-stable-v1.1.0
+  cancel-in-progress: false
+
+jobs:
+  publish-verified-stable:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: android-actions/setup-android@v4
+      - name: Install APK signature verifier
+        run: sdkmanager --install 'build-tools;35.0.0'
+      - name: Download and SHA-256 pin original signed stable APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 4 --retry-delay 3 --connect-timeout 30 --max-time 600 \
+            --proto '=https' --proto-redir '=https' \
+            -o "$RUNNER_TEMP/NavTasks_1.1.0.apk" \
+            "https://github.com/sergbokarev95-arch/NavTasks/releases/download/v1.1.0/NavTasks_1.1.0.apk"
+          test "$(stat -c%s "$RUNNER_TEMP/NavTasks_1.1.0.apk")" = 37068610
+          printf '%s  %s\n' \
+            fb6bed2d1f7d132bf97f05c00ad9c1b28a733fff66205d079c42c2ddf6624c5e \
+            "$RUNNER_TEMP/NavTasks_1.1.0.apk" | sha256sum --check --status
+      - name: Verify app ID, stable version and ORIGINAL signing certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$RUNNER_TEMP/NavTasks_1.1.0.apk"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | \
+            grep -F "package: name='com.navtasks.app.glass' versionCode='230' versionName='1.1.0'"
+          ! "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | \
+            grep -Fq 'application-debuggable'
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --min-sdk-version 31 "$APK"
+          ACTUAL="$("$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$APK" |
+            awk -F': ' '/Signer #1 certificate SHA-256 digest:/ {print $2; exit}')"
+          test "$ACTUAL" = 0cb8a3c691e3fb2198682dff8c226aec710e77c7b8fded7d260a92f359a49c54
+      - name: Publish stable release (idempotent; NEVER overwrite a different asset)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view v1.1.0 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            mkdir -p "$RUNNER_TEMP/existing"
+            gh release download v1.1.0 --repo "$GITHUB_REPOSITORY" \
+              --pattern NavTasks_1.1.0.apk --dir "$RUNNER_TEMP/existing"
+            printf '%s  %s\n' \
+              fb6bed2d1f7d132bf97f05c00ad9c1b28a733fff66205d079c42c2ddf6624c5e \
+              "$RUNNER_TEMP/existing/NavTasks_1.1.0.apk" | sha256sum --check --status
+          else
+            gh release create v1.1.0 "$RUNNER_TEMP/NavTasks_1.1.0.apk" \
+              --repo "$GITHUB_REPOSITORY" --latest \
+              --title "NavTasks 1.1.0" \
+              --notes "NavTasks 1.1.0 stable: photos in Handover entries, thumbnail preview and removal; each photo is embedded under its matching entry in exported PDF and Word. Offline and full/selective transfer supported. Owner tested attachments and both exports on the beta. Signed with the original certificate. Optional updates preserve existing data."
+          fi
+          gh release view v1.1.0 --repo "$GITHUB_REPOSITORY" \
+            --json isDraft,isPrerelease --jq '.isDraft == false and .isPrerelease == false' | grep -Fx true
+      - name: Activate stable update feed only AFTER verified APK release exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path("channels/stable.json")
+          before = json.loads(p.read_text(encoding="utf-8"))
+          if before.get("schemaVersion") != 1 or before.get("channel") != "stable":
+              raise SystemExit("Unexpected stable channel schema: refusing publication")
+          if before.get("versionCode") not in (227, 230):
+              raise SystemExit("Unexpected current stable version: refusing publication")
+          if before.get("applicationId") != "com.navtasks.app.glass":
+              raise SystemExit("Unexpected application ID in current stable channel")
+          if before.get("apk", {}).get("signerSha256") != "0cb8a3c691e3fb2198682dff8c226aec710e77c7b8fded7d260a92f359a49c54":
+              raise SystemExit("Unexpected signer in existing stable channel")
+          data = {
+              "schemaVersion": 1,
+              "channel": "stable",
+              "available": True,
+              "applicationId": "com.navtasks.app.glass",
+              "versionName": "1.1.0",
+              "versionCode": 230,
+              "minSdk": 31,
+              "minSupportedVersionCode": 182,
+              "apk": {
+                  "url": "https://github.com/sergbokarev95-arch/NavTasks-Updates/releases/download/v1.1.0/NavTasks_1.1.0.apk",
+                  "sizeBytes": 37068610,
+                  "sha256": "fb6bed2d1f7d132bf97f05c00ad9c1b28a733fff66205d079c42c2ddf6624c5e",
+                  "signerSha256": "0cb8a3c691e3fb2198682dff8c226aec710e77c7b8fded7d260a92f359a49c54"
+              },
+              "releaseNotes": {
+                  "ru": "NavTasks 1.1.0 — фотографии в Handover. Добавляйте до четырёх фотографий к пункту, просматривайте и удаляйте вложения. При экспорте в PDF и Word фото располагаются под текстом своего пункта. Данные сохраняются офлайн и при полном или выборочном переносе.",
+                  "en": "NavTasks 1.1.0 — photos in Handover. Attach up to four photos per entry, preview and remove them. PDF and Word exports place photos directly under their entry. Offline storage and full/selective profile exchange are supported."
+              }
+          }
+          p.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add channels/stable.json
+          if git diff --cached --quiet; then
+            echo "Stable update feed already matches verified release"
+          else
+            git commit -m "release: enable verified signed NavTasks 1.1.0 stable feed"
+            git push origin HEAD:main
+          fi
