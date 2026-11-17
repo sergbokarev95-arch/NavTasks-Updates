@@ -3,18 +3,18 @@
   "channel": "stable",
   "available": true,
   "applicationId": "com.navtasks.app.glass",
-  "versionName": "1.0.1",
-  "versionCode": 227,
+  "versionName": "1.1.0",
+  "versionCode": 230,
   "minSdk": 31,
   "minSupportedVersionCode": 182,
   "apk": {
-    "url": "https://github.com/sergbokarev95-arch/NavTasks-Updates/releases/download/v1.0.1/NavTasks_1.0.1.apk",
-    "sizeBytes": 37035846,
-    "sha256": "7dc19a79f32d242e7e8965c0f8e18f552fd693f2884478d50142d58e4c16ae03",
+    "url": "https://github.com/sergbokarev95-arch/NavTasks-Updates/releases/download/v1.1.0/NavTasks_1.1.0.apk",
+    "sizeBytes": 37068610,
+    "sha256": "fb6bed2d1f7d132bf97f05c00ad9c1b28a733fff66205d079c42c2ddf6624c5e",
     "signerSha256": "0cb8a3c691e3fb2198682dff8c226aec710e77c7b8fded7d260a92f359a49c54"
   },
   "releaseNotes": {
-    "ru": "NavTasks 1.0.1 — пробное обновление по воздуху. Убрана лишняя надпись Glass в нижнем блоке настроек. Остальные функции и данные не изменены.",
-    "en": "NavTasks 1.0.1 — over-the-air update test. Removed the legacy Glass word from the Settings version footer. All other functionality and stored data remain unchanged."
+    "ru": "NavTasks 1.1.0 — фотографии в Handover. Добавляйте до четырёх фотографий к пункту, просматривайте и удаляйте вложения. При экспорте в PDF и Word фото располагаются под текстом своего пункта. Данные сохраняются офлайн и при полном или выборочном переносе.",
+    "en": "NavTasks 1.1.0 — photos in Handover. Attach up to four photos per entry, preview and remove them. PDF and Word exports place photos directly under their entry. Offline storage and full/selective profile exchange are supported."
   }
 }
