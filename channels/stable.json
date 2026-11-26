@@ -3,18 +3,18 @@
   "channel": "stable",
   "available": true,
   "applicationId": "com.navtasks.app.glass",
-  "versionName": "1.1.0",
-  "versionCode": 230,
+  "versionName": "1.2.0",
+  "versionCode": 346,
   "minSdk": 31,
   "minSupportedVersionCode": 182,
   "apk": {
-    "url": "https://github.com/sergbokarev95-arch/NavTasks-Updates/releases/download/v1.1.0/NavTasks_1.1.0.apk",
-    "sizeBytes": 37068610,
-    "sha256": "fb6bed2d1f7d132bf97f05c00ad9c1b28a733fff66205d079c42c2ddf6624c5e",
+    "url": "https://github.com/sergbokarev95-arch/NavTasks-Updates/releases/download/v1.2.0/NavTasks_1.2.0.apk",
+    "sizeBytes": 37330758,
+    "sha256": "5332af206f155182ea512f1281c8ced8843f203125d1ac5c7f5a260857ca2cde",
     "signerSha256": "0cb8a3c691e3fb2198682dff8c226aec710e77c7b8fded7d260a92f359a49c54"
   },
   "releaseNotes": {
-    "ru": "NavTasks 1.1.0 — фотографии в Handover. Добавляйте до четырёх фотографий к пункту, просматривайте и удаляйте вложения. При экспорте в PDF и Word фото располагаются под текстом своего пункта. Данные сохраняются офлайн и при полном или выборочном переносе.",
-    "en": "NavTasks 1.1.0 — photos in Handover. Attach up to four photos per entry, preview and remove them. PDF and Word exports place photos directly under their entry. Offline storage and full/selective profile exchange are supported."
+    "ru": "NavTasks 1.2.0 — новый дизайн: Сегодня, календарь, редактор задач, AMOS, сервисы, Handover, профили, справочник, оборудование, мои материалы и настройки. Единые карточки, коралловые акценты, Liquid Glass, обновлённые редакторы и поиск. Онлайн-библиотека и инспекционные материалы пока в разработке. Перед обновлением рекомендуем экспорт профиля.",
+    "en": "NavTasks 1.2.0 — refreshed design across Today, calendar, task editor, AMOS, services, Handover, profiles, reference, equipment, My Materials and settings. Consistent cards, coral accents, Liquid Glass, refreshed editors and search. Online library and inspection content remain in development. Export your profile before upgrading."
   }
 }
