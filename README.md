@@ -13,12 +13,12 @@ Official **binary-only** distribution channel for the NavTasks Android applicati
 
 Machine-readable stable metadata: [channels/stable.json](channels/stable.json).
 
-Until the first approved stable release, this file says `"available": false`. **No stable APK is currently published in this public repository.**
+The active stable version and verified APK link are defined by `channels/stable.json`. Previous stable releases remain available in GitHub Releases.
 
-Each future stable release will provide:
+Stable releases provide:
 
 - One complete signed APK (no incremental patch chain);
-- A matching `.sha256` file;
+- A matching SHA-256 digest in the channel metadata;
 - Release notes in Russian and English;
 - A pinned-version metadata record with the package name, versionCode, APK size, SHA-256 digest and HTTPS download URL.
 

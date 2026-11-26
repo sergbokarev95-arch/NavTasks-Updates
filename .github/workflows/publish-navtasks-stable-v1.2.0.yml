@@ -1,0 +1,135 @@
+name: Publish and verify signed NavTasks 1.2.0 stable update
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-navtasks-stable-v1.2.0.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: navtasks-publish-stable-v1.2.0
+  cancel-in-progress: false
+
+jobs:
+  publish-verified-stable:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: android-actions/setup-android@v4
+      - name: Install APK signature verifier
+        run: sdkmanager --install 'build-tools;35.0.0'
+      - name: Download exact verified source Actions artifact and SHA-256 pin APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Source release upload failed HTTP 403 after CI verification. Never rebuild.
+          URL="https://api.github.com/repos/sergbokarev95-arch/NavTasks/actions/artifacts/15086469817/zip"
+          ZIP="$RUNNER_TEMP/NavTasks_1.2.0.zip"
+          APK="$RUNNER_TEMP/NavTasks_1.2.0.apk"
+          if ! curl --fail --location --retry 2 --retry-delay 2 --connect-timeout 30 --max-time 600 \
+              --proto '=https' --proto-redir '=https' -o "$ZIP" "$URL"; then
+            curl --fail --location --retry 2 --retry-delay 2 --connect-timeout 30 --max-time 600 \
+              --proto '=https' --proto-redir '=https' \
+              -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+              -o "$ZIP" "$URL"
+          fi
+          test "$(stat -c%s "$ZIP")" = 13873707
+          printf '%s  %s\n' '06c4370ef386d6df3f5eae23ad743dbfd9a935bdcbc6ee144090c7f859d839f6' "$ZIP" | sha256sum --check --status
+          unzip -p "$ZIP" app-release.apk > "$APK"
+          test "$(stat -c%s "$APK")" = 37330758
+          printf '%s  %s\n' '5332af206f155182ea512f1281c8ced8843f203125d1ac5c7f5a260857ca2cde' "$APK" | sha256sum --check --status
+      - name: Verify app ID, stable version and ORIGINAL signing certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$RUNNER_TEMP/NavTasks_1.2.0.apk"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | \
+            grep -F "package: name='com.navtasks.app.glass' versionCode='346' versionName='1.2.0'"
+          ! "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | \
+            grep -Fq 'application-debuggable'
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --min-sdk-version 31 "$APK"
+          ACTUAL="$("$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$APK" |
+            awk -F': ' '/Signer #1 certificate SHA-256 digest:/ {print $2; exit}')"
+          test "$ACTUAL" = 0cb8a3c691e3fb2198682dff8c226aec710e77c7b8fded7d260a92f359a49c54
+      - name: Publish stable release (idempotent; NEVER overwrite a different asset)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view v1.2.0 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            mkdir -p "$RUNNER_TEMP/existing"
+            gh release download v1.2.0 --repo "$GITHUB_REPOSITORY" \
+              --pattern NavTasks_1.2.0.apk --dir "$RUNNER_TEMP/existing"
+            printf '%s  %s\n' \
+              5332af206f155182ea512f1281c8ced8843f203125d1ac5c7f5a260857ca2cde \
+              "$RUNNER_TEMP/existing/NavTasks_1.2.0.apk" | sha256sum --check --status
+          else
+            gh release create v1.2.0 "$RUNNER_TEMP/NavTasks_1.2.0.apk" \
+              --repo "$GITHUB_REPOSITORY" --latest \
+              --title "NavTasks 1.2.0" \
+              --notes "NavTasks 1.2.0 — новый дизайн: Сегодня, календарь, редактор задач, AMOS, сервисы, Handover, профили, справочник, оборудование, мои материалы и настройки. Единые карточки, коралловые акценты, Liquid Glass, обновлённые редакторы и поиск. Онлайн-библиотека и инспекционные материалы пока в разработке. Перед обновлением рекомендуем экспорт профиля. / NavTasks 1.2.0 — refreshed design across Today, calendar, task editor, AMOS, services, Handover, profiles, reference, equipment, My Materials and settings. Consistent cards, coral accents, Liquid Glass, refreshed editors and search. Online library and inspection content remain in development. Export your profile before upgrading."
+          fi
+          gh release view v1.2.0 --repo "$GITHUB_REPOSITORY" \
+            --json isDraft,isPrerelease --jq '.isDraft == false and .isPrerelease == false' | grep -Fx true
+          mkdir -p "$RUNNER_TEMP/published"
+          gh release download v1.2.0 --repo "$GITHUB_REPOSITORY" \
+            --pattern NavTasks_1.2.0.apk --dir "$RUNNER_TEMP/published"
+          test "$(stat -c%s "$RUNNER_TEMP/published/NavTasks_1.2.0.apk")" = 37330758
+          printf '%s  %s\n' '5332af206f155182ea512f1281c8ced8843f203125d1ac5c7f5a260857ca2cde' "$RUNNER_TEMP/published/NavTasks_1.2.0.apk" | sha256sum --check --status
+      - name: Activate stable update feed only AFTER verified APK release exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path("channels/stable.json")
+          before = json.loads(p.read_text(encoding="utf-8"))
+          if before.get("schemaVersion") != 1 or before.get("channel") != "stable":
+              raise SystemExit("Unexpected stable channel schema: refusing publication")
+          if before.get("versionCode") not in (230, 346):
+              raise SystemExit("Unexpected current stable version: refusing publication")
+          if before.get("applicationId") != "com.navtasks.app.glass":
+              raise SystemExit("Unexpected application ID in current stable channel")
+          if before.get("apk", {}).get("signerSha256") != "0cb8a3c691e3fb2198682dff8c226aec710e77c7b8fded7d260a92f359a49c54":
+              raise SystemExit("Unexpected signer in existing stable channel")
+          data = {
+              "schemaVersion": 1,
+              "channel": "stable",
+              "available": True,
+              "applicationId": "com.navtasks.app.glass",
+              "versionName": "1.2.0",
+              "versionCode": 346,
+              "minSdk": 31,
+              "minSupportedVersionCode": 182,
+              "apk": {
+                  "url": "https://github.com/sergbokarev95-arch/NavTasks-Updates/releases/download/v1.2.0/NavTasks_1.2.0.apk",
+                  "sizeBytes": 37330758,
+                  "sha256": "5332af206f155182ea512f1281c8ced8843f203125d1ac5c7f5a260857ca2cde",
+                  "signerSha256": "0cb8a3c691e3fb2198682dff8c226aec710e77c7b8fded7d260a92f359a49c54"
+              },
+              "releaseNotes": {
+                  "ru": "NavTasks 1.2.0 — новый дизайн: Сегодня, календарь, редактор задач, AMOS, сервисы, Handover, профили, справочник, оборудование, мои материалы и настройки. Единые карточки, коралловые акценты, Liquid Glass, обновлённые редакторы и поиск. Онлайн-библиотека и инспекционные материалы пока в разработке. Перед обновлением рекомендуем экспорт профиля.",
+                  "en": "NavTasks 1.2.0 — refreshed design across Today, calendar, task editor, AMOS, services, Handover, profiles, reference, equipment, My Materials and settings. Consistent cards, coral accents, Liquid Glass, refreshed editors and search. Online library and inspection content remain in development. Export your profile before upgrading."
+              }
+          }
+          p.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add channels/stable.json
+          if git diff --cached --quiet; then
+            echo "Stable update feed already matches verified release"
+          else
+            git commit -m "release: enable verified signed NavTasks 1.2.0 stable feed"
+            git push origin HEAD:main
+          fi
